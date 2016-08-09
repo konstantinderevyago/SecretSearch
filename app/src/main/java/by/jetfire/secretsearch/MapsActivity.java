@@ -1,7 +1,11 @@
 package by.jetfire.secretsearch;
 
 import android.Manifest;
+import android.animation.ArgbEvaluator;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,6 +19,7 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -30,17 +35,75 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, LocationListener,
-        GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
+        GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener,
+        GoogleMap.OnInfoWindowClickListener {
 
     private static final int PERMISSION_REQUEST_ALL_NEEDED = 1;
     private static final int DEFAULT_ZOOM = 15;
+
+    private static final String[] questions = {
+            "first question",
+            "second question",
+            "third question",
+            "forth question",
+            "fifth question",
+            "first question",
+            "second question",
+            "third question",
+            "forth question",
+            "fifth question",
+            "first question",
+            "second question",
+            "third question",
+            "forth question",
+            "fifth question",
+            "forth question",
+            "fifth question"
+    };
+    private static final LatLng[] locations = {
+            new LatLng(53.89, 27.54),
+            new LatLng(53.9, 27.54),
+            new LatLng(53.88, 27.54),
+            new LatLng(53.90, 27.53),
+            new LatLng(53.90, 27.55),
+            new LatLng(53.88, 27.53),
+            new LatLng(53.88, 27.55),
+            new LatLng(53.89, 27.53),
+            new LatLng(53.89, 27.55),
+
+            new LatLng(53.905, 27.5405),
+            new LatLng(53.885, 27.545),
+            new LatLng(53.905, 27.535),
+            new LatLng(53.905, 27.555),
+            new LatLng(53.885, 27.535),
+            new LatLng(53.885, 27.555),
+            new LatLng(53.895, 27.535),
+            new LatLng(53.895, 27.555),
+//            new LatLng(53.9, 27.5),
+//            new LatLng(54, 27.6),
+//            new LatLng(54, 27.4),
+//            new LatLng(53.8, 27.6),
+//            new LatLng(53.8, 27.4),
+//            new LatLng(54, 27),
+//            new LatLng(55, 28),
+//            new LatLng(55, 26),
+//            new LatLng(53, 28),
+//            new LatLng(53, 26)
+    };
+
+    String[] neededPermissions = {
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.CAMERA,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+    };
 
     @Bind(R.id.location_scroll)
     protected ScrollView locationScroll;
@@ -50,12 +113,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected ImageView arrow;
 
     private GoogleMap googleMap;
+    private MapInfoWindowAdapter mapInfoWindowAdapter;
 
     private GoogleApiClient googleApiClient;
     private LocationRequest locationRequest;
     private Location location;
 
-    private List<LatLng> locations;
+    private Map<Marker, LocationData> locationInfo;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,26 +127,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         setContentView(R.layout.activity_maps);
         ButterKnife.bind(this);
 
-        initLocations();
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_REQUEST_ALL_NEEDED);
+            requestPermissions(neededPermissions, PERMISSION_REQUEST_ALL_NEEDED);
         }
+
+        mapInfoWindowAdapter = new MapInfoWindowAdapter(this);
 
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
         buildGoogleApiClient();
-    }
-
-    private void initLocations() {
-        locations = new ArrayList<>();
-        locations.add(new LatLng(54, 27));
-        locations.add(new LatLng(55, 26));
-        locations.add(new LatLng(55, 28));
-        locations.add(new LatLng(53, 28));
-        locations.add(new LatLng(53, 26));
     }
 
     protected void onStart() {
@@ -116,19 +171,23 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         this.googleMap = googleMap;
 
-        // Add a marker in Sydney and move the camera
-//        LatLng sydney = new LatLng(-34, 151);
-//        this.googleMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
-//        this.googleMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
-
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
             googleMap.setMyLocationEnabled(true);
         }
 
-        for (LatLng latLng : locations) {
-            MarkerOptions markerOptions = new MarkerOptions().position(latLng).title("marker");
-            googleMap.addMarker(markerOptions);
+        googleMap.setInfoWindowAdapter(mapInfoWindowAdapter);
+        googleMap.setOnInfoWindowClickListener(this);
+
+        locationInfo = new HashMap<>();
+        for (int i = 0; i < locations.length; i++) {
+            LocationData locationData = new LocationData();
+            locationData.setQuestion(questions[i]);
+            locationData.setLatLng(locations[i]);
+
+            MarkerOptions markerOptions = new MarkerOptions().position(locationData.getLatLng());
+            Marker marker = googleMap.addMarker(markerOptions);
+            locationInfo.put(marker, locationData);
         }
         googleMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
             @Override
@@ -140,10 +199,25 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    public void onInfoWindowClick(Marker marker) {
+        LocationData locationData = getLocationData(marker);
+        Toast.makeText(this, locationData.getQuestion(), Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         if (requestCode == PERMISSION_REQUEST_ALL_NEEDED) {
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                googleMap.setMyLocationEnabled(true);
+            boolean haveAllPermissions = true;
+            for (int result : grantResults) {
+                if (result == PackageManager.PERMISSION_DENIED) {
+                    haveAllPermissions = false;
+                }
+            }
+
+            if (haveAllPermissions) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    googleMap.setMyLocationEnabled(true);
+                }
             } else {
                 finish();
             }
@@ -181,9 +255,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onLocationChanged(Location location) {
         this.location = location;
-        animateArrow(locations.get(0));
+//        animateArrow(locations.get(0));
 
-        locationText.append("Location = [" + location.getLatitude() + ", " + location.getLongitude() + "]\n");
+        locationText.append("[" + location.getLatitude() + ", " + location.getLongitude() + "]\n");
 
         locationScroll.post(new Runnable() {
             @Override
@@ -194,13 +268,39 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     private void animateArrow(LatLng latLng) {
+        if (location != null) {
+            updateArrowRotation(latLng);
+            updateArrowColor(latLng);
+        } else {
+            buildGoogleApiClient();
+        }
+    }
+
+    private void updateArrowRotation(LatLng latLng) {
         double y = latLng.latitude - location.getLatitude();
         double x = latLng.longitude - location.getLongitude();
         double tg = x / y;
         float arctg = (float) Math.toDegrees(Math.atan(tg));
-
-        Log.i("Test", y + " / " + x + " = " + tg + " | " + arctg);
-
+        if (y < 0) {
+            arctg += 180;
+        }
         arrow.setRotation(arctg);
+    }
+
+    private void updateArrowColor(LatLng latLng) {
+        float[] result = new float[1];
+        Location.distanceBetween(location.getLatitude(), location.getLongitude(), latLng.latitude, latLng.longitude, result);
+        float distance = result[0] / 2000;
+        if (distance > 1f) {
+            distance = 1f;
+        }
+        int color = (int) new ArgbEvaluator().evaluate(distance, Color.GREEN, Color.RED);
+
+        PorterDuffColorFilter colorFilter = new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_ATOP);
+        arrow.setColorFilter(colorFilter);
+    }
+
+    public LocationData getLocationData(Marker marker) {
+        return locationInfo.get(marker);
     }
 }

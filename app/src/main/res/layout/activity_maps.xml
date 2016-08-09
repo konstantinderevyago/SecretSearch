@@ -25,7 +25,7 @@
                 android:layout_gravity="bottom|center_horizontal"
                 android:layout_margin="10dp"
                 android:contentDescription="@string/default_description"
-                android:src="@drawable/arrow" />
+                android:src="@drawable/ic_navigation_black_24dp" />
 
         </FrameLayout>
 
