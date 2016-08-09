@@ -1,6 +1,5 @@
 package by.jetfire.secretsearch;
 
-import android.content.Context;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -32,7 +31,10 @@ public class MapInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
         TextView question = (TextView) view.findViewById(R.id.question);
         ImageView photo = (ImageView) view.findViewById(R.id.photo);
 
-        question.setText(locationData.getQuestion());
+        if (locationData.isFinished()) {
+            question.setText(locationData.getQuestion());
+        }
+        photo.setImageBitmap(locationData.getBitmap());
 
         return view;
     }
