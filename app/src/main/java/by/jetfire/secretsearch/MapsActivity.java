@@ -9,23 +9,18 @@ import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.location.Location;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.content.FileProvider;
-import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -42,12 +37,13 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.Locale;
+import java.util.List;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
@@ -60,55 +56,36 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private static final int REQUEST_IMAGE_CAPTURE = 2;
     private static final int DEFAULT_ZOOM = 15;
 
-    private static final String[] questions = {
-            "first question",
-            "second question",
-            "third question",
-            "forth question",
-            "fifth question",
-            "first question",
-            "second question",
-            "third question",
-            "forth question",
-            "fifth question",
-            "first question",
-            "second question",
-            "third question",
-            "forth question",
-            "fifth question",
-            "forth question",
-            "fifth question"
-    };
-    private static final LatLng[] locations = {
-            new LatLng(53.89, 27.54),
-            new LatLng(53.9, 27.54),
-            new LatLng(53.88, 27.54),
-            new LatLng(53.90, 27.53),
-            new LatLng(53.90, 27.55),
-            new LatLng(53.88, 27.53),
-            new LatLng(53.88, 27.55),
-            new LatLng(53.89, 27.53),
-            new LatLng(53.89, 27.55),
-
-            new LatLng(53.905, 27.5405),
-            new LatLng(53.885, 27.545),
-            new LatLng(53.905, 27.535),
-            new LatLng(53.905, 27.555),
-            new LatLng(53.885, 27.535),
-            new LatLng(53.885, 27.555),
-            new LatLng(53.895, 27.535),
-            new LatLng(53.895, 27.555),
-//            new LatLng(53.9, 27.5),
-//            new LatLng(54, 27.6),
-//            new LatLng(54, 27.4),
-//            new LatLng(53.8, 27.6),
-//            new LatLng(53.8, 27.4),
-//            new LatLng(54, 27),
-//            new LatLng(55, 28),
-//            new LatLng(55, 26),
-//            new LatLng(53, 28),
-//            new LatLng(53, 26)
-    };
+//    private static final LatLng[] locations = {
+//            new LatLng(53.89, 27.54),
+//            new LatLng(53.9, 27.54),
+//            new LatLng(53.88, 27.54),
+//            new LatLng(53.90, 27.53),
+//            new LatLng(53.90, 27.55),
+//            new LatLng(53.88, 27.53),
+//            new LatLng(53.88, 27.55),
+//            new LatLng(53.89, 27.53),
+//            new LatLng(53.89, 27.55),
+//
+//            new LatLng(53.905, 27.5405),
+//            new LatLng(53.885, 27.545),
+//            new LatLng(53.905, 27.535),
+//            new LatLng(53.905, 27.555),
+//            new LatLng(53.885, 27.535),
+//            new LatLng(53.885, 27.555),
+//            new LatLng(53.895, 27.535),
+//            new LatLng(53.895, 27.555),
+////            new LatLng(53.9, 27.5),
+////            new LatLng(54, 27.6),
+////            new LatLng(54, 27.4),
+////            new LatLng(53.8, 27.6),
+////            new LatLng(53.8, 27.4),
+////            new LatLng(54, 27),
+////            new LatLng(55, 28),
+////            new LatLng(55, 26),
+////            new LatLng(53, 28),
+////            new LatLng(53, 26)
+//    };
 
     String[] neededPermissions = {
             Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -133,6 +110,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private Map<Marker, LocationData> locationInfo;
     private Marker currentMarker;
+    private Marker photoMarker;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -192,28 +170,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         googleMap.setInfoWindowAdapter(mapInfoWindowAdapter);
         googleMap.setOnInfoWindowClickListener(this);
 
-        locationInfo = new HashMap<>();
-        for (int i = 0; i < locations.length; i++) {
-            LocationData locationData = new LocationData();
-            locationData.setQuestion(questions[i]);
-            locationData.setLatLng(locations[i]);
-
-            MarkerOptions markerOptions = new MarkerOptions().position(locationData.getLatLng());
-            Marker marker = googleMap.addMarker(markerOptions);
-            locationInfo.put(marker, locationData);
-        }
-        googleMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
-            @Override
-            public boolean onMarkerClick(Marker marker) {
-                animateArrow(marker.getPosition());
-                return false;
-            }
-        });
+//        googleMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
+//            @Override
+//            public boolean onMarkerClick(Marker marker) {
+//                updateArrow();
+//                return false;
+//            }
+//        });
     }
 
     @Override
     public void onInfoWindowClick(Marker marker) {
-        currentMarker = marker;
+        photoMarker = marker;
         takePhoto();
     }
 
@@ -258,11 +226,30 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
             Bundle extras = data.getExtras();
             Bitmap imageBitmap = (Bitmap) extras.get("data");
-            if (currentMarker != null) {
-                LocationData locationData = getLocationData(currentMarker);
+            if (photoMarker != null) {
+                LocationData locationData = getLocationData(photoMarker);
                 locationData.setFinished(true);
                 locationData.setBitmap(imageBitmap);
-                currentMarker.showInfoWindow();
+                saveImageFile(imageBitmap, locationData.getAnswer());
+                photoMarker.showInfoWindow();
+            }
+        }
+    }
+
+    private void saveImageFile(Bitmap bitmap, String fileName) {
+        FileOutputStream out = null;
+        try {
+            out = new FileOutputStream(new File(getExternalFilesDir(null), fileName + ".png"));
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (out != null) {
+                    out.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
     }
@@ -297,10 +284,33 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, locationRequest, this);
             location = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
 
-            if (location != null) {
+            if (location != null && locationInfo == null) {
                 LatLng position = new LatLng(location.getLatitude(), location.getLongitude());
+
+                LocationData startLocationData = new LocationData();
+                startLocationData.setQuestion("Where did I say 'I love you' in first time?");
+                startLocationData.setAnswer("Let's start!");
+                startLocationData.setLatLng(position);
+                List<LocationData> locationDataPath = startLocationData.getLocationDataPath();
+
+                locationInfo = new HashMap<>();
+                for (int i = 0; i < locationDataPath.size(); i++) {
+                    LocationData locationData = locationDataPath.get(i);
+
+                    MarkerOptions markerOptions = new MarkerOptions().position(locationData.getLatLng());
+                    Marker marker = googleMap.addMarker(markerOptions);
+                    marker.setVisible(i == 0);
+                    if (i == 0) {
+                        currentMarker = marker;
+                    }
+                    locationData.setMarker(marker);
+                    locationInfo.put(marker, locationData);
+                }
+
                 CameraUpdate center = CameraUpdateFactory.newLatLngZoom(position, DEFAULT_ZOOM);
                 googleMap.animateCamera(center);
+
+                startEmulation();
             }
         }
     }
@@ -317,8 +327,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     public void onLocationChanged(Location location) {
-        this.location = location;
-//        animateArrow(locations.get(0));
+//        this.location = location;
+//        updateArrow();
 
         locationText.append("[" + location.getLatitude() + ", " + location.getLongitude() + "]\n");
 
@@ -330,12 +340,43 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         });
     }
 
-    private void animateArrow(LatLng latLng) {
-        if (location != null) {
+    private Timer timer;
+
+    private void startEmulation() {
+        timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                location.setLatitude(location.getLatitude() + 0.0001);
+                location.setLongitude(location.getLongitude() + 0.0001);
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        updateArrow();
+                    }
+                });
+            }
+        }, 0, 100);
+    }
+
+    private LatLng getNextLocation() {
+        LocationData locationData = getLocationData(currentMarker);
+        LocationData next = locationData.getNextStep();
+        if (next != null) {
+            return next.getLatLng();
+        }
+
+        return null;
+    }
+
+    private void updateArrow() {
+        LatLng latLng = getNextLocation();
+        if (location != null && latLng != null) {
             updateArrowRotation(latLng);
             updateArrowColor(latLng);
-        } else {
-            buildGoogleApiClient();
+//        } else {
+//            buildGoogleApiClient();
         }
     }
 
@@ -357,10 +398,28 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         if (distance > 1f) {
             distance = 1f;
         }
+        if (distance <= 0.12) {
+            changeTarget();
+        }
         int color = (int) new ArgbEvaluator().evaluate(distance, Color.GREEN, Color.RED);
 
         PorterDuffColorFilter colorFilter = new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_ATOP);
         arrow.setColorFilter(colorFilter);
+    }
+
+    private void changeTarget() {
+        LocationData locationData = getLocationData(currentMarker);
+        LocationData nextLocationData = locationData.getNextStep();
+        if (nextLocationData != null) {
+            currentMarker = nextLocationData.getMarker();
+            currentMarker.setVisible(true);
+            currentMarker.showInfoWindow();
+            updateArrow();
+        } else {
+            if (timer != null) {
+                timer.cancel();
+            }
+        }
     }
 
     public LocationData getLocationData(Marker marker) {

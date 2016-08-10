@@ -28,13 +28,20 @@ public class MapInfoWindowAdapter implements GoogleMap.InfoWindowAdapter {
         LocationData locationData = context.getLocationData(marker);
 
         View view = context.getLayoutInflater().inflate(R.layout.info_window, null);
+        TextView answer = (TextView) view.findViewById(R.id.answer);
         TextView question = (TextView) view.findViewById(R.id.question);
         ImageView photo = (ImageView) view.findViewById(R.id.photo);
 
-        if (locationData.isFinished()) {
-            question.setText(locationData.getQuestion());
+        if (locationData != null) {
+            if (locationData.isFinished()) {
+                question.setVisibility(View.VISIBLE);
+                question.setText(locationData.getQuestion());
+            } else {
+                question.setVisibility(View.GONE);
+            }
+            answer.setText(locationData.getAnswer());
+            photo.setImageBitmap(locationData.getBitmap());
         }
-        photo.setImageBitmap(locationData.getBitmap());
 
         return view;
     }
