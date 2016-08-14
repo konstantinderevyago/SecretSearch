@@ -5,6 +5,7 @@ import android.animation.ArgbEvaluator;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
@@ -38,19 +39,18 @@ import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, LocationListener,
         GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener,
-        GoogleMap.OnInfoWindowClickListener {
+        GoogleMap.OnInfoWindowClickListener, CheatListener {
 
     private static final int PERMISSION_REQUEST_ALL_NEEDED = 1;
     private static final int REQUEST_IMAGE_CAPTURE = 2;
@@ -108,6 +108,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private LocationRequest locationRequest;
     private Location location;
 
+    private LocationData startLocationData;
     private Map<Marker, LocationData> locationInfo;
     private Marker currentMarker;
     private Marker photoMarker;
@@ -169,14 +170,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         googleMap.setInfoWindowAdapter(mapInfoWindowAdapter);
         googleMap.setOnInfoWindowClickListener(this);
-
-//        googleMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
-//            @Override
-//            public boolean onMarkerClick(Marker marker) {
-//                updateArrow();
-//                return false;
-//            }
-//        });
     }
 
     @Override
@@ -200,7 +193,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 //                        "by.jetfire.secretsearch",
 //                        photoFile);
 //                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+            startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
 //            }
         }
     }
@@ -238,6 +231,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private void saveImageFile(Bitmap bitmap, String fileName) {
         FileOutputStream out = null;
+//        Bitmap copy = Bitmap.createBitmap(bitmap);
         try {
             out = new FileOutputStream(new File(getExternalFilesDir(null), fileName + ".png"));
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
@@ -248,7 +242,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 if (out != null) {
                     out.close();
                 }
-            } catch (IOException e) {
+//                if (copy != null) {
+//                    copy.recycle();
+//                }
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
@@ -276,42 +273,80 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
-        locationRequest = LocationRequest.create();
-        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        locationRequest.setInterval(100);
+        try {
+            locationRequest = LocationRequest.create();
+            locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+            locationRequest.setInterval(100);
 
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, locationRequest, this);
-            location = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, locationRequest, this);
+                location = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
 
-            if (location != null && locationInfo == null) {
-                LatLng position = new LatLng(location.getLatitude(), location.getLongitude());
+                if (location != null && locationInfo == null) {
+                    LatLng position = new LatLng(location.getLatitude(), location.getLongitude());
 
-                LocationData startLocationData = new LocationData();
-                startLocationData.setQuestion("Where did I say 'I love you' in first time?");
-                startLocationData.setAnswer("Let's start!");
-                startLocationData.setLatLng(position);
-                List<LocationData> locationDataPath = startLocationData.getLocationDataPath();
+                    initLocationData(position);
 
-                locationInfo = new HashMap<>();
-                for (int i = 0; i < locationDataPath.size(); i++) {
-                    LocationData locationData = locationDataPath.get(i);
+                    CameraUpdate center = CameraUpdateFactory.newLatLngZoom(position, DEFAULT_ZOOM);
+                    googleMap.animateCamera(center);
 
-                    MarkerOptions markerOptions = new MarkerOptions().position(locationData.getLatLng());
-                    Marker marker = googleMap.addMarker(markerOptions);
-                    marker.setVisible(i == 0);
-                    if (i == 0) {
-                        currentMarker = marker;
-                    }
-                    locationData.setMarker(marker);
-                    locationInfo.put(marker, locationData);
+//                    startEmulation();
                 }
-
-                CameraUpdate center = CameraUpdateFactory.newLatLngZoom(position, DEFAULT_ZOOM);
-                googleMap.animateCamera(center);
-
-                startEmulation();
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void initLocationData(LatLng position) {
+        if (startLocationData == null) {
+            startLocationData = new LocationData();
+            startLocationData.initStartLocationData(position);
+
+            checkMarkerState(startLocationData);
+        }
+
+        locationInfo = new HashMap<>();
+        addMarker(startLocationData);
+    }
+
+    private void checkMarkerState(LocationData locationData) {
+        try {
+            File file = new File(getExternalFilesDir(null), locationData.getAnswer() + ".png");
+            if (file.exists()) {
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                Bitmap bitmap = BitmapFactory.decodeFile(file.getPath(), options);
+
+                locationData.setBitmap(bitmap);
+                locationData.setFinished(true);
+                locationData.setVisible(true);
+
+                LocationData nextLocationData = locationData.getNextStep();
+                if (nextLocationData != null) {
+                    checkMarkerState(nextLocationData);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void addMarker(LocationData locationData) {
+        MarkerOptions markerOptions = new MarkerOptions().position(locationData.getLatLng());
+        Marker marker = googleMap.addMarker(markerOptions);
+        locationData.setMarker(marker);
+        locationInfo.put(marker, locationData);
+
+        boolean visible = locationData.isVisible();
+        marker.setVisible(visible);
+        if (visible) {
+            currentMarker = marker;
+        }
+
+        LocationData nextLocationData = locationData.getNextStep();
+        if (nextLocationData != null) {
+            addMarker(nextLocationData);
         }
     }
 
@@ -327,8 +362,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     public void onLocationChanged(Location location) {
-//        this.location = location;
-//        updateArrow();
+        if (this.location == null) {
+            LatLng position = new LatLng(location.getLatitude(), location.getLongitude());
+            initLocationData(position);
+        }
+        this.location = location;
+        updateArrow();
 
         locationText.append("[" + location.getLatitude() + ", " + location.getLongitude() + "]\n");
 
@@ -362,9 +401,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private LatLng getNextLocation() {
         LocationData locationData = getLocationData(currentMarker);
-        LocationData next = locationData.getNextStep();
-        if (next != null) {
-            return next.getLatLng();
+        if (locationData != null) {
+            LocationData next = locationData.getNextStep();
+            if (next != null) {
+                return next.getLatLng();
+            }
         }
 
         return null;
@@ -411,7 +452,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         LocationData locationData = getLocationData(currentMarker);
         LocationData nextLocationData = locationData.getNextStep();
         if (nextLocationData != null) {
-            currentMarker = nextLocationData.getMarker();
+            nextLocationData.setVisible(true);
+            Marker marker = nextLocationData.getMarker();
+            locationInfo.put(marker, nextLocationData);
+            currentMarker = marker;
             currentMarker.setVisible(true);
             currentMarker.showInfoWindow();
             updateArrow();
@@ -422,7 +466,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
+    @OnClick(R.id.cheat)
+    protected void onCheatClick() {
+        new CheatDialog(this, this).show();
+    }
+
+    @Override
+    public void onCheat() {
+        changeTarget();
+    }
+
     public LocationData getLocationData(Marker marker) {
-        return locationInfo.get(marker);
+        if (locationInfo != null) {
+            return locationInfo.get(marker);
+        }
+        return null;
     }
 }

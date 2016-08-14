@@ -2,4 +2,6 @@
     <string name="app_name">Secret Search</string>
     <string name="title_activity_maps">Map</string>
     <string name="default_description">default_description</string>
+    <string name="enter_cheat">Enter Cheat</string>
+    <string name="ok">OK</string>
 </resources>

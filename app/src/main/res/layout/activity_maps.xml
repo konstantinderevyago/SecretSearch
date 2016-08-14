@@ -27,12 +27,20 @@
                 android:contentDescription="@string/default_description"
                 android:src="@drawable/ic_navigation_black_24dp" />
 
+            <View
+                android:id="@+id/cheat"
+                android:layout_width="100dp"
+                android:layout_height="50dp"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="10dp"/>
+
         </FrameLayout>
 
         <ScrollView
             android:id="@+id/location_scroll"
             android:layout_width="wrap_content"
-            android:layout_height="match_parent">
+            android:layout_height="match_parent"
+            android:visibility="gone">
 
             <TextView
                 android:id="@+id/location_text"
